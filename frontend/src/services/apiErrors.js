@@ -11,12 +11,12 @@ export function getApiErrorMessage(error, fallback) {
       return 'Your session has expired. Please sign in again.'
     }
 
-    if (status === 404) {
-      return 'The requested item could not be found. It may have been deleted.'
-    }
-
     if (data?.message) {
       return data.message
+    }
+
+    if (status === 404) {
+      return 'The requested item could not be found. It may have been deleted.'
     }
 
     if (status >= 500) {
