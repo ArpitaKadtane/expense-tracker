@@ -1,83 +1,85 @@
-// package com.diligent.expense.service;
-
-// public class ExpenseService {
-    
-// }
-
 package com.diligent.expense.service;
 
 import com.diligent.expense.model.Expense;
+import com.diligent.expense.repository.ExpenseRepository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class ExpenseService {
 
-    private final Map<Long, Expense> expenses = new ConcurrentHashMap<>();
+    private final ExpenseRepository expenses;
 
-    private final AtomicLong idGenerator = new AtomicLong(0);
+    public ExpenseService(ExpenseRepository expenses) {
+        this.expenses = expenses;
+    }
 
+    @Transactional
     public Expense createExpense(Expense expense) {
-
-        Long id = idGenerator.incrementAndGet();
-
-        expense.setId(id);
-
-        expenses.put(id, expense);
-
-        return expense;
+        return expenses.save(expense);
     }
 
-    public List<Expense> getAllExpenses() {
-
-        return new ArrayList<>(expenses.values());
+    @Transactional(readOnly = true)
+    public Page<Expense> getAllExpenses(Pageable pageable) {
+        return expenses.findAll(pageable);
     }
 
-    public List<Expense> getExpensesByCategory(String category) {
-
-        return expenses.values()
-                .stream()
-                .filter(expense ->
-                        expense.getCategory().equalsIgnoreCase(category))
-                .toList();
+    @Transactional(readOnly = true)
+    public Page<Expense> getExpensesByCategory(String category, Pageable pageable) {
+        return expenses.findByCategoryIgnoreCase(category, pageable);
     }
 
+    @Transactional(readOnly = true)
+    public List<String> getCategories() {
+        return expenses.findDistinctCategories();
+    }
+
+    @Transactional(readOnly = true)
     public BigDecimal getTotalExpenses() {
-
-        return expenses.values()
-                .stream()
-                .map(Expense::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = expenses.sumAmount();
+        return total == null ? BigDecimal.ZERO : total;
     }
 
+    @Transactional(readOnly = true)
     public BigDecimal getTotalExpensesByCategory(String category) {
-
-        return expenses.values()
-                .stream()
-                .filter(expense ->
-                        expense.getCategory().equalsIgnoreCase(category))
-                .map(Expense::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = expenses.sumAmountByCategory(category);
+        return total == null ? BigDecimal.ZERO : total;
     }
 
+    @Transactional
+    public Expense updateExpense(Long id, Expense expense) {
+        Expense existing = expenses.findById(id)
+                .orElseThrow(() -> new ExpenseNotFoundException(id));
+
+        existing.setTitle(expense.getTitle());
+        existing.setAmount(expense.getAmount());
+        existing.setCategory(expense.getCategory());
+        existing.setDate(expense.getDate());
+
+        return expenses.save(existing);
+    }
+
+    @Transactional
     public void deleteExpense(Long id) {
-
-        expenses.remove(id);
+        if (!expenses.existsById(id)) {
+            throw new ExpenseNotFoundException(id);
+        }
+        expenses.deleteById(id);
     }
 
+    @Transactional(readOnly = true)
     public boolean expenseExists(Long id) {
-
-        return expenses.containsKey(id);
+        return expenses.existsById(id);
     }
 
-public void clearExpenses() {
-    expenses.clear();
-    idGenerator.set(0);
-}
+    @Transactional
+    public void clearExpenses() {
+        expenses.deleteAll();
+    }
 }

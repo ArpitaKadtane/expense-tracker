@@ -5,6 +5,10 @@ import com.diligent.expense.service.ExpenseService;
 
 import jakarta.validation.Valid;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +19,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/expenses")
 public class ExpenseController {
+
+    private static final int DEFAULT_PAGE_SIZE = 10;
 
     private final ExpenseService expenseService;
 
@@ -34,19 +40,34 @@ public class ExpenseController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Expense>> getExpenses(
-            @RequestParam(required = false) String category) {
+    public ResponseEntity<PageResponse<Expense>> getExpenses(
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        int pageSize = size < 1 ? DEFAULT_PAGE_SIZE : size;
+        int pageNumber = Math.max(page, 0);
+
+        Pageable pageable = PageRequest.of(
+                pageNumber,
+                pageSize,
+                Sort.by(Sort.Direction.DESC, "date", "id")
+        );
+
+        Page<Expense> expensePage;
 
         if (category != null && !category.isBlank()) {
-
-            return ResponseEntity.ok(
-                    expenseService.getExpensesByCategory(category)
-            );
+            expensePage = expenseService.getExpensesByCategory(category, pageable);
+        } else {
+            expensePage = expenseService.getAllExpenses(pageable);
         }
 
-        return ResponseEntity.ok(
-                expenseService.getAllExpenses()
-        );
+        return ResponseEntity.ok(PageResponse.from(expensePage));
+    }
+
+    @GetMapping("/categories")
+    public ResponseEntity<List<String>> getCategories() {
+        return ResponseEntity.ok(expenseService.getCategories());
     }
 
     @GetMapping("/summary")
@@ -70,13 +91,18 @@ public class ExpenseController {
         );
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Expense> updateExpense(
+            @PathVariable Long id,
+            @Valid @RequestBody Expense expense) {
+
+        Expense updatedExpense = expenseService.updateExpense(id, expense);
+
+        return ResponseEntity.ok(updatedExpense);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExpense(@PathVariable Long id) {
-
-        if (!expenseService.expenseExists(id)) {
-
-            return ResponseEntity.notFound().build();
-        }
 
         expenseService.deleteExpense(id);
 
@@ -87,5 +113,27 @@ public class ExpenseController {
             String category,
             BigDecimal totalExpenses
     ) {
+    }
+
+    public record PageResponse<T>(
+            List<T> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+        public static <T> PageResponse<T> from(Page<T> page) {
+            return new PageResponse<>(
+                    page.getContent(),
+                    page.getNumber(),
+                    page.getSize(),
+                    page.getTotalElements(),
+                    page.getTotalPages(),
+                    page.isFirst(),
+                    page.isLast()
+            );
+        }
     }
 }

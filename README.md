@@ -1,127 +1,115 @@
-# Smart Expense Tracker API
+# Smart Expense Tracker
 
-The API supports creating, viewing, filtering, summarizing, and deleting expenses. Data is stored in memory, so no external database is required.
+A full-stack expense tracking application for creating, updating, filtering and summarizing daily expenses. Built with a Spring Boot REST API, a React frontend, and PostgreSQL persistence.
 
-## Tech Stack
+**Backend:** Java 17 · Spring Boot 4 · Spring Data JPA · PostgreSQL · Bean Validation · OpenAPI/Swagger · JUnit + MockMvc
+**Frontend:** React 19 · Vite · Axios
+**Infra:** Docker · Docker Compose · GitHub Actions CI
 
-* Java 17
-* Spring Boot 4.1.0
-* Spring MVC
-* Maven Wrapper
-* Jakarta Bean Validation
-* JUnit
-* Spring MVC Test / MockMvc
-* OpenAPI / Swagger UI
-* In-memory storage using `ConcurrentHashMap`
+---
 
 ## Features
 
-* Create an expense
-* View all expenses
-* Filter expenses by category
-* Calculate total expenses
-* Calculate total expenses for a specific category
-* Delete an expense
-* Input validation
-* Consistent validation error responses
-* Automated controller tests
-* Interactive OpenAPI / Swagger documentation
+- Create, view, update and delete expenses (full CRUD)
+- Filter expenses by category
+- Paginated expense list (page + size)
+- Overall and per-category total summaries
+- Request validation with structured, field-level error responses
+- Input validation surfaced directly in the UI
+- Interactive API documentation via Swagger UI
+- Automated backend test suite (12 tests)
 
-## Project Structure
+---
 
-```text
-expense-tracker/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/diligent/expense/
-│   │   │       ├── controller/
-│   │   │       ├── exception/
-│   │   │       ├── model/
-│   │   │       ├── service/
-│   │   │       └── ExpenseTrackerApplication.java
-│   │   └── resources/
-│   │
-│   └── test/
-│       └── java/
-│           └── com/diligent/expense/
-│               ├── ExpenseControllerTest.java
-│               
-│
-├── pom.xml
-├── mvnw
-├── mvnw.cmd
-├── README.md
-└── AI_NOTES.md
+## Quick Start (Docker — recommended)
+
+The fastest way to run the full stack (database + backend + frontend):
+
+```bash
+git clone https://github.com/ArpitaKadtane/expense-tracker.git
+cd expense-tracker
+docker compose up --build
 ```
 
-## Prerequisites
+Then open:
 
-* Java 17 or later
-* No separate Maven installation is required because the project includes the Maven Wrapper.
+- **Frontend:** http://localhost:5173
+- **API:** http://localhost:8080/api/expenses
+- **Swagger UI:** http://localhost:8080/swagger-ui.html
 
-Verify Java:
+Stop everything:
 
-```powershell
-java -version
+```bash
+docker compose down
 ```
 
-## Installation
+Data is stored in a named Docker volume (`pgdata`), so it survives restarts. To also delete the data, run `docker compose down -v`.
 
-Clone the repository and enter the project directory.
+---
 
-Windows:
+## Quick Start (Local, without Docker)
 
-```powershell
-.\mvnw.cmd clean install
+### Prerequisites
+
+- Java 17+
+- Node.js 18+
+- A running PostgreSQL instance (or run only the database with `docker compose up -d db`)
+
+### 1. Backend
+
+Configure the database connection via environment variables (defaults shown in `.env.example`):
+
+```bash
+DB_URL=jdbc:postgresql://localhost:5432/expense_tracker
+DB_USER=expense
+DB_PASSWORD=expense
 ```
 
-The Maven Wrapper downloads the required Maven dependencies automatically.
+Then start the API:
 
-## Run the Application
-
-Windows:
-
+**Windows**
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
 
-The server starts on:
-
-```text
-http://localhost:8080
+**macOS/Linux**
+```bash
+./mvnw spring-boot:run
 ```
 
-## Run Tests
+The API runs at `http://localhost:8080`.
 
-Windows:
+### 2. Frontend
 
-```powershell
-.\mvnw.cmd clean test
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-The test suite covers:
+The frontend runs at `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8080`, so no CORS configuration is needed locally.
 
-* Creating an expense
-* Retrieving all expenses
-* Filtering by category
-* Calculating overall totals
-* Calculating category totals
-* Deleting an expense
-* Handling deletion of a non-existent expense
-* Rejecting invalid expense data
+---
 
 ## API Endpoints
 
-### Create Expense
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/expenses` | Create an expense |
+| `GET` | `/api/expenses?page=0&size=10&category=Food` | List expenses (paginated, optional category filter) |
+| `GET` | `/api/expenses/categories` | List distinct categories |
+| `GET` | `/api/expenses/summary?category=Food` | Total expenses (overall or by category) |
+| `PUT` | `/api/expenses/{id}` | Update an expense |
+| `DELETE` | `/api/expenses/{id}` | Delete an expense |
+
+### Example request
 
 ```http
 POST /api/expenses
-```
+Content-Type: application/json
 
-Example request:
-
-```json
 {
   "title": "Grocery Shopping",
   "amount": 1250.50,
@@ -130,134 +118,58 @@ Example request:
 }
 ```
 
-Returns `201 Created`.
-
----
-
-### Get All Expenses
-
-```http
-GET /api/expenses
-```
-
-Returns `200 OK`.
-
----
-
-### Filter Expenses by Category
-
-```http
-GET /api/expenses?category=Food
-```
-
-Returns only expenses belonging to the requested category.
-
----
-
-### Get Overall Expense Summary
-
-```http
-GET /api/expenses/summary
-```
-
-Example response:
+### Paginated response
 
 ```json
 {
-  "totalExpenses": 2100.50
+  "content": [ { "id": 1, "title": "Grocery Shopping", "amount": 1250.50, "category": "Food", "date": "2026-07-31" } ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1,
+  "first": true,
+  "last": true
 }
 ```
 
 ---
-
-### Get Category Expense Summary
-
-```http
-GET /api/expenses/summary?category=Food
-```
-
-Example response:
-
-```json
-{
-  "category": "Food",
-  "totalExpenses": 1750.50
-}
-```
-
----
-
-### Delete Expense
-
-```http
-DELETE /api/expenses/{id}
-```
-
-Returns `204 No Content` when the expense is deleted.
-
-Returns `404 Not Found` when the requested expense does not exist.
-
-## Validation
-
-The API validates incoming expense data.
-
-The following fields are required:
-
-* `title`
-* `amount`
-* `category`
-* `date`
-
-The amount must be greater than zero.
-
-Invalid requests return:
-
-```text
-400 Bad Request
-```
-
-with a structured validation error response.
-
-## API Documentation
-
-Swagger UI is available while the application is running:
-
-```text
-http://localhost:8080/swagger-ui.html
-```
-
-OpenAPI specification:
-
-```text
-http://localhost:8080/v3/api-docs
-```
-
-Swagger UI can be used to explore and execute the API endpoints interactively.
-
-## Data Storage
-
-The assignment does not require a database, so expenses are stored in memory using a thread-safe `ConcurrentHashMap`.
-
-Because storage is in memory, all data is cleared when the application restarts.
 
 ## Testing
 
-The project uses JUnit and Spring MVC Test with `MockMvc` for API-level controller testing.
+The test suite uses an in-memory H2 database, so no PostgreSQL instance is required:
 
-The complete test suite currently passes successfully.
-
-```text
-Tests run: 8
-Failures: 0
-Errors: 0
-Skipped: 0
-BUILD SUCCESS
+**Windows**
+```powershell
+.\mvnw.cmd test
 ```
 
-## Optional Bonus
+**macOS/Linux**
+```bash
+./mvnw test
+```
 
-The project implements the **OpenAPI/Swagger documentation** bonus.
+```
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
+```
 
-## AI Usage
+---
 
-AI tools were used during development as a coding and learning assistant. Details about generated code, validation performed, modifications made, and rejected suggestions are documented in `AI_NOTES.md`.
+## Continuous Integration
+
+Every push and pull request to `main` runs the GitHub Actions workflow in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml), which builds and tests the
+backend and builds the frontend.
+
+---
+
+## Configuration
+
+The backend reads configuration from environment variables (with sensible local defaults):
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/expense_tracker` | PostgreSQL JDBC URL |
+| `DB_USER` | `expense` | Database user |
+| `DB_PASSWORD` | `expense` | Database password |
+| `PORT` | `8080` | HTTP port |
+| `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowed frontend origins |

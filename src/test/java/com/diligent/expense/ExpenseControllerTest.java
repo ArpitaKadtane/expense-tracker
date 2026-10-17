@@ -2,6 +2,7 @@ package com.diligent.expense;
 
 import com.diligent.expense.service.ExpenseService;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +17,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -63,80 +65,90 @@ class ExpenseControllerTest {
     @Test
     void shouldGetAllExpenses() throws Exception {
 
-        createExpense(
-                "Grocery",
-                "100.00",
-                "Food",
-                "2026-07-31"
-        );
-
-        createExpense(
-                "Bus Ticket",
-                "50.00",
-                "Transport",
-                "2026-07-30"
-        );
+        createExpense("Grocery", "100.00", "Food", "2026-07-31");
+        createExpense("Bus Ticket", "50.00", "Transport", "2026-07-30");
 
         mockMvc.perform(get("/api/expenses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)));
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
     }
 
     @Test
     void shouldFilterExpensesByCategory() throws Exception {
 
-        createExpense(
-                "Grocery",
-                "100.00",
-                "Food",
-                "2026-07-31"
-        );
-
-        createExpense(
-                "Dinner",
-                "200.00",
-                "Food",
-                "2026-07-30"
-        );
-
-        createExpense(
-                "Bus Ticket",
-                "50.00",
-                "Transport",
-                "2026-07-29"
-        );
+        createExpense("Grocery", "100.00", "Food", "2026-07-31");
+        createExpense("Dinner", "200.00", "Food", "2026-07-30");
+        createExpense("Bus Ticket", "50.00", "Transport", "2026-07-29");
 
         mockMvc.perform(
                 get("/api/expenses")
                         .param("category", "Food")
         )
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(2)));
+        .andExpect(jsonPath("$.content", hasSize(2)))
+        .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void shouldPaginateExpenses() throws Exception {
+
+        for (int i = 1; i <= 5; i++) {
+            createExpense(
+                    "Expense " + i,
+                    String.valueOf(i * 10) + ".00",
+                    "Food",
+                    String.format("2026-07-%02d", i)
+            );
+        }
+
+        mockMvc.perform(
+                get("/api/expenses")
+                        .param("page", "0")
+                        .param("size", "2")
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(2)))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(2))
+        .andExpect(jsonPath("$.totalElements").value(5))
+        .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(false));
+
+        mockMvc.perform(
+                get("/api/expenses")
+                        .param("page", "2")
+                        .param("size", "2")
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    void shouldReturnDistinctCategories() throws Exception {
+
+        createExpense("Grocery", "100.00", "Food", "2026-07-31");
+        createExpense("Dinner", "150.00", "Food", "2026-07-30");
+        createExpense("Bus", "50.00", "Transport", "2026-07-29");
+
+        mockMvc.perform(get("/api/expenses/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0]").value("Food"))
+                .andExpect(jsonPath("$[1]").value("Transport"));
     }
 
     @Test
     void shouldCalculateOverallTotal() throws Exception {
 
-        createExpense(
-                "Grocery",
-                "100.00",
-                "Food",
-                "2026-07-31"
-        );
-
-        createExpense(
-                "Bus",
-                "50.00",
-                "Transport",
-                "2026-07-30"
-        );
-
-        createExpense(
-                "Dinner",
-                "150.00",
-                "Food",
-                "2026-07-29"
-        );
+        createExpense("Grocery", "100.00", "Food", "2026-07-31");
+        createExpense("Bus", "50.00", "Transport", "2026-07-30");
+        createExpense("Dinner", "150.00", "Food", "2026-07-29");
 
         mockMvc.perform(get("/api/expenses/summary"))
                 .andExpect(status().isOk())
@@ -146,26 +158,9 @@ class ExpenseControllerTest {
     @Test
     void shouldCalculateCategoryTotal() throws Exception {
 
-        createExpense(
-                "Grocery",
-                "100.00",
-                "Food",
-                "2026-07-31"
-        );
-
-        createExpense(
-                "Dinner",
-                "150.00",
-                "Food",
-                "2026-07-30"
-        );
-
-        createExpense(
-                "Bus",
-                "50.00",
-                "Transport",
-                "2026-07-29"
-        );
+        createExpense("Grocery", "100.00", "Food", "2026-07-31");
+        createExpense("Dinner", "150.00", "Food", "2026-07-30");
+        createExpense("Bus", "50.00", "Transport", "2026-07-29");
 
         mockMvc.perform(
                 get("/api/expenses/summary")
@@ -177,21 +172,66 @@ class ExpenseControllerTest {
     }
 
     @Test
-    void shouldDeleteExpense() throws Exception {
+    void shouldUpdateExpense() throws Exception {
 
-        createExpense(
-                "Grocery",
-                "100.00",
-                "Food",
-                "2026-07-31"
+        long id = createExpense(
+                "Grocery", "100.00", "Food", "2026-07-31"
         );
 
-        mockMvc.perform(delete("/api/expenses/1"))
+        String updateRequest = """
+                {
+                    "title": "Groceries Updated",
+                    "amount": "250.00",
+                    "category": "Groceries",
+                    "date": "2026-08-01"
+                }
+                """;
+
+        mockMvc.perform(
+                put("/api/expenses/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequest)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.title").value("Groceries Updated"))
+                .andExpect(jsonPath("$.amount").value(250.00))
+                .andExpect(jsonPath("$.category").value("Groceries"))
+                .andExpect(jsonPath("$.date").value("2026-08-01"));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenUpdatingNonExistingExpense()
+            throws Exception {
+
+        String updateRequest = """
+                {
+                    "title": "Any",
+                    "amount": "10.00",
+                    "category": "Any",
+                    "date": "2026-07-31"
+                }
+                """;
+
+        mockMvc.perform(
+                put("/api/expenses/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequest)
+        )
+        .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldDeleteExpense() throws Exception {
+
+        long id = createExpense("Grocery", "100.00", "Food", "2026-07-31");
+
+        mockMvc.perform(delete("/api/expenses/" + id))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/expenses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test
@@ -231,7 +271,7 @@ class ExpenseControllerTest {
                 .value("Date is required"));
     }
 
-    private void createExpense(
+    private long createExpense(
             String title,
             String amount,
             String category,
@@ -251,11 +291,16 @@ class ExpenseControllerTest {
                 date
         );
 
-        mockMvc.perform(
+        String response = mockMvc.perform(
                 post("/api/expenses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request)
         )
-        .andExpect(status().isCreated());
+        .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return ((Number) JsonPath.read(response, "$.id")).longValue();
     }
 }
