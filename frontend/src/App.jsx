@@ -8,6 +8,7 @@ import ExpenseList from './components/ExpenseList'
 import ConfirmDialog from './components/ConfirmDialog'
 import Banner from './components/Banner'
 import LoginForm from './components/LoginForm'
+import GroupsPage from './components/GroupsPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 import {
@@ -24,17 +25,36 @@ const PAGE_SIZE = 10
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <Root />
     </AuthProvider>
   )
 }
 
-function AppRoutes() {
+function Root() {
   const { isAuthenticated } = useAuth()
-  return isAuthenticated ? <Dashboard /> : <LoginForm />
+  if (!isAuthenticated) {
+    return <LoginForm />
+  }
+  return <MainApp />
 }
 
-function Dashboard() {
+function MainApp() {
+  const [view, setView] = useState('expenses')
+
+  return (
+    <div className="app">
+      <Header view={view} onViewChange={setView} />
+
+      {view === 'expenses' ? <ExpenseDashboard /> : <GroupsPage />}
+
+      <footer className="footer">
+        <p>Smart Expense Tracker · Java Spring Boot + React frontend</p>
+      </footer>
+    </div>
+  )
+}
+
+function ExpenseDashboard() {
   const [expensePage, setExpensePage] = useState(null)
   const [categories, setCategories] = useState([])
   const [page, setPage] = useState(0)
@@ -134,9 +154,7 @@ function Dashboard() {
   const expenses = expensePage?.content ?? null
 
   return (
-    <div className="app">
-      <Header />
-
+    <>
       <main className="container">
         {error && (
           <Banner variant="error" onDismiss={() => setError('')}>
@@ -188,12 +206,6 @@ function Dashboard() {
         </div>
       </main>
 
-      <footer className="footer">
-        <p>
-          Smart Expense Tracker · Java Spring Boot + React frontend
-        </p>
-      </footer>
-
       {pendingDelete && (
         <ConfirmDialog
           title="Delete expense?"
@@ -204,6 +216,6 @@ function Dashboard() {
           onCancel={() => setPendingDelete(null)}
         />
       )}
-    </div>
+    </>
   )
 }
