@@ -2,7 +2,7 @@
 
 A full-stack expense tracking application for creating, updating, filtering and summarizing daily expenses. Built with a Spring Boot REST API, a React frontend, and PostgreSQL persistence.
 
-**Backend:** Java 17 · Spring Boot 4 · Spring Data JPA · PostgreSQL · Bean Validation · OpenAPI/Swagger · JUnit + MockMvc
+**Backend:** Java 17 · Spring Boot 4 · Spring Data JPA · Spring Security · JWT · PostgreSQL · Bean Validation · OpenAPI/Swagger · JUnit + MockMvc
 **Frontend:** React 19 · Vite · Axios
 **Infra:** Docker · Docker Compose · GitHub Actions CI
 
@@ -10,6 +10,9 @@ A full-stack expense tracking application for creating, updating, filtering and 
 
 ## Features
 
+- User registration and login with stateless JWT authentication
+- Every expense is scoped to its owner — each user only ever sees their own data
+- Passwords stored as BCrypt hashes (never in plain text)
 - Create, view, update and delete expenses (full CRUD)
 - Filter expenses by category
 - Paginated expense list (page + size)
@@ -17,7 +20,7 @@ A full-stack expense tracking application for creating, updating, filtering and 
 - Request validation with structured, field-level error responses
 - Input validation surfaced directly in the UI
 - Interactive API documentation via Swagger UI
-- Automated backend test suite (12 tests)
+- Automated backend test suite (18 tests, including auth and data-isolation cases)
 
 ---
 
@@ -34,7 +37,7 @@ docker compose up --build
 Then open:
 
 - **Frontend:** http://localhost:5173
-- **API:** http://localhost:8080/api/expenses
+- **API health:** http://localhost:8080/api/health
 - **Swagger UI:** http://localhost:8080/swagger-ui.html
 
 Stop everything:
@@ -95,6 +98,19 @@ The frontend runs at `http://localhost:5173`. The Vite dev server proxies `/api`
 
 ## API Endpoints
 
+### Authentication
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Register a new user and receive a JWT |
+| `POST` | `/api/auth/login` | Log in and receive a JWT |
+| `GET` | `/api/auth/me` | Return the authenticated user |
+
+### Expenses
+
+All expense endpoints require an `Authorization: Bearer <token>` header. A user
+only ever sees and modifies **their own** expenses.
+
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/api/expenses` | Create an expense |
@@ -104,11 +120,41 @@ The frontend runs at `http://localhost:5173`. The Vite dev server proxies `/api`
 | `PUT` | `/api/expenses/{id}` | Update an expense |
 | `DELETE` | `/api/expenses/{id}` | Delete an expense |
 
-### Example request
+### Public
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/` | API landing info |
+| `GET` | `/api/health` | Health check |
+
+### Register / log in
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "arpita",
+  "password": "s3cret-password"
+}
+```
+
+Response (`201 Created`):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "username": "arpita",
+  "tokenType": "Bearer"
+}
+```
+
+### Authenticated request
 
 ```http
 POST /api/expenses
 Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 
 {
   "title": "Grocery Shopping",
@@ -149,7 +195,7 @@ The test suite uses an in-memory H2 database, so no PostgreSQL instance is requi
 ```
 
 ```
-Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 18, Failures: 0, Errors: 0, Skipped: 0
 ```
 
 ---
@@ -177,6 +223,7 @@ Backend environment variables to configure on Render:
 - `DB_URL` — Neon JDBC URL, e.g. `jdbc:postgresql://<host>/<db>?sslmode=require`
 - `DB_USER`, `DB_PASSWORD` — Neon credentials
 - `CORS_ALLOWED_ORIGINS` — the deployed frontend URL, e.g. `https://your-app.vercel.app`
+- `JWT_SECRET` — a strong random string of at least 32 characters. `render.yaml` uses `generateValue: true` to create one automatically
 
 Frontend environment variable to configure on Vercel (build-time):
 
@@ -195,3 +242,5 @@ The backend reads configuration from environment variables (with sensible local 
 | `DB_PASSWORD` | `expense` | Database password |
 | `PORT` | `8080` | HTTP port |
 | `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowed frontend origins |
+| `JWT_SECRET` | dev-only placeholder | JWT signing secret (min 32 chars). **Always override in production** |
+| `JWT_EXPIRATION_MS` | `86400000` | JWT lifetime in milliseconds (24 hours) |

@@ -1,4 +1,8 @@
+import { useAuth } from '../context/AuthContext'
+
 export default function Header() {
+  const { username, logout } = useAuth()
+
   return (
     <header className="header">
       <div className="header-inner">
@@ -11,6 +15,15 @@ export default function Header() {
             <p>Track your spending, stay in control</p>
           </div>
         </div>
+
+        {username && (
+          <div className="header-user">
+            <span className="header-user-name">{username}</span>
+            <button type="button" className="btn-logout" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )

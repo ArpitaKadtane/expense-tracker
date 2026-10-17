@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -30,9 +31,11 @@ public class ExpenseController {
 
     @PostMapping
     public ResponseEntity<Expense> createExpense(
-            @Valid @RequestBody Expense expense) {
+            @Valid @RequestBody Expense expense,
+            Authentication authentication) {
 
-        Expense createdExpense = expenseService.createExpense(expense);
+        Expense createdExpense =
+                expenseService.createExpense(expense, authentication.getName());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -43,7 +46,8 @@ public class ExpenseController {
     public ResponseEntity<PageResponse<Expense>> getExpenses(
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
 
         int pageSize = size < 1 ? DEFAULT_PAGE_SIZE : size;
         int pageNumber = Math.max(page, 0);
@@ -57,34 +61,39 @@ public class ExpenseController {
         Page<Expense> expensePage;
 
         if (category != null && !category.isBlank()) {
-            expensePage = expenseService.getExpensesByCategory(category, pageable);
+            expensePage = expenseService.getExpensesByCategory(
+                    authentication.getName(), category, pageable);
         } else {
-            expensePage = expenseService.getAllExpenses(pageable);
+            expensePage = expenseService.getAllExpenses(
+                    authentication.getName(), pageable);
         }
 
         return ResponseEntity.ok(PageResponse.from(expensePage));
     }
 
     @GetMapping("/categories")
-    public ResponseEntity<List<String>> getCategories() {
-        return ResponseEntity.ok(expenseService.getCategories());
+    public ResponseEntity<List<String>> getCategories(Authentication authentication) {
+        return ResponseEntity.ok(expenseService.getCategories(authentication.getName()));
     }
 
     @GetMapping("/summary")
     public ResponseEntity<?> getSummary(
-            @RequestParam(required = false) String category) {
+            @RequestParam(required = false) String category,
+            Authentication authentication) {
+
+        String username = authentication.getName();
 
         if (category != null && !category.isBlank()) {
 
             BigDecimal total =
-                    expenseService.getTotalExpensesByCategory(category);
+                    expenseService.getTotalExpensesByCategory(username, category);
 
             return ResponseEntity.ok(
                     new SummaryResponse(category, total)
             );
         }
 
-        BigDecimal total = expenseService.getTotalExpenses();
+        BigDecimal total = expenseService.getTotalExpenses(username);
 
         return ResponseEntity.ok(
                 new SummaryResponse(null, total)
@@ -94,17 +103,21 @@ public class ExpenseController {
     @PutMapping("/{id}")
     public ResponseEntity<Expense> updateExpense(
             @PathVariable Long id,
-            @Valid @RequestBody Expense expense) {
+            @Valid @RequestBody Expense expense,
+            Authentication authentication) {
 
-        Expense updatedExpense = expenseService.updateExpense(id, expense);
+        Expense updatedExpense =
+                expenseService.updateExpense(id, expense, authentication.getName());
 
         return ResponseEntity.ok(updatedExpense);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteExpense(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteExpense(
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        expenseService.deleteExpense(id);
+        expenseService.deleteExpense(id, authentication.getName());
 
         return ResponseEntity.noContent().build();
     }

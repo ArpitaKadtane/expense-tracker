@@ -10,21 +10,35 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
-    Page<Expense> findByCategoryIgnoreCase(String category, Pageable pageable);
+    Page<Expense> findByUserUsername(String username, Pageable pageable);
 
-    @Query("SELECT DISTINCT e.category FROM Expense e ORDER BY e.category ASC")
-    List<String> findDistinctCategories();
+    Page<Expense> findByUserUsernameAndCategoryIgnoreCase(
+            String username, String category, Pageable pageable);
 
-    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e")
-    BigDecimal sumAmount();
+    Optional<Expense> findByIdAndUserUsername(Long id, String username);
+
+    @Query("""
+            SELECT DISTINCT e.category
+            FROM Expense e
+            WHERE e.user.username = :username
+            ORDER BY e.category ASC
+            """)
+    List<String> findDistinctCategoriesByUsername(@Param("username") String username);
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.user.username = :username")
+    BigDecimal sumAmountByUsername(@Param("username") String username);
 
     @Query("""
             SELECT COALESCE(SUM(e.amount), 0)
             FROM Expense e
-            WHERE LOWER(e.category) = LOWER(:category)
+            WHERE e.user.username = :username
+              AND LOWER(e.category) = LOWER(:category)
             """)
-    BigDecimal sumAmountByCategory(@Param("category") String category);
+    BigDecimal sumAmountByUsernameAndCategory(
+            @Param("username") String username,
+            @Param("category") String category);
 }

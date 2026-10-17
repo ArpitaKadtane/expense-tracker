@@ -1,5 +1,6 @@
 package com.diligent.expense;
 
+import com.diligent.expense.repository.UserRepository;
 import com.diligent.expense.service.ExpenseService;
 
 import com.jayway.jsonpath.JsonPath;
@@ -26,16 +27,71 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ExpenseControllerTest {
 
+    private static final String AUTHORIZATION = "Authorization";
+
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ExpenseService expenseService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private String token;
+
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         expenseService.clearExpenses();
+        userRepository.deleteAll();
+        token = registerAndGetToken("tester");
     }
+
+    // ------------------------------------------------------------------
+    // Authentication
+    // ------------------------------------------------------------------
+
+    @Test
+    void shouldReturnUnauthorizedWithoutToken() throws Exception {
+        mockMvc.perform(get("/api/expenses"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldLoginWithValidCredentials() throws Exception {
+        mockMvc.perform(
+                post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(authBody("tester", "password123"))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.token").exists())
+        .andExpect(jsonPath("$.username").value("tester"));
+    }
+
+    @Test
+    void shouldRejectLoginWithWrongPassword() throws Exception {
+        mockMvc.perform(
+                post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(authBody("tester", "wrong-password"))
+        )
+        .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRejectDuplicateUsername() throws Exception {
+        mockMvc.perform(
+                post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(authBody("tester", "password123"))
+        )
+        .andExpect(status().isConflict());
+    }
+
+    // ------------------------------------------------------------------
+    // CRUD
+    // ------------------------------------------------------------------
 
     @Test
     void shouldCreateExpense() throws Exception {
@@ -51,6 +107,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 post("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request)
         )
@@ -68,7 +125,7 @@ class ExpenseControllerTest {
         createExpense("Grocery", "100.00", "Food", "2026-07-31");
         createExpense("Bus Ticket", "50.00", "Transport", "2026-07-30");
 
-        mockMvc.perform(get("/api/expenses"))
+        mockMvc.perform(get("/api/expenses").header(AUTHORIZATION, bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(2)))
                 .andExpect(jsonPath("$.totalElements").value(2))
@@ -86,6 +143,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 get("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .param("category", "Food")
         )
         .andExpect(status().isOk())
@@ -107,6 +165,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 get("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .param("page", "0")
                         .param("size", "2")
         )
@@ -116,17 +175,18 @@ class ExpenseControllerTest {
         .andExpect(jsonPath("$.size").value(2))
         .andExpect(jsonPath("$.totalElements").value(5))
         .andExpect(jsonPath("$.totalPages").value(3))
-                .andExpect(jsonPath("$.first").value(true))
-                .andExpect(jsonPath("$.last").value(false));
+        .andExpect(jsonPath("$.first").value(true))
+        .andExpect(jsonPath("$.last").value(false));
 
         mockMvc.perform(
                 get("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .param("page", "2")
                         .param("size", "2")
         )
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content", hasSize(1)))
-                .andExpect(jsonPath("$.last").value(true));
+        .andExpect(jsonPath("$.last").value(true));
     }
 
     @Test
@@ -136,7 +196,7 @@ class ExpenseControllerTest {
         createExpense("Dinner", "150.00", "Food", "2026-07-30");
         createExpense("Bus", "50.00", "Transport", "2026-07-29");
 
-        mockMvc.perform(get("/api/expenses/categories"))
+        mockMvc.perform(get("/api/expenses/categories").header(AUTHORIZATION, bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0]").value("Food"))
@@ -150,7 +210,7 @@ class ExpenseControllerTest {
         createExpense("Bus", "50.00", "Transport", "2026-07-30");
         createExpense("Dinner", "150.00", "Food", "2026-07-29");
 
-        mockMvc.perform(get("/api/expenses/summary"))
+        mockMvc.perform(get("/api/expenses/summary").header(AUTHORIZATION, bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalExpenses").value(300.00));
     }
@@ -164,6 +224,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 get("/api/expenses/summary")
+                        .header(AUTHORIZATION, bearer())
                         .param("category", "Food")
         )
         .andExpect(status().isOk())
@@ -189,15 +250,16 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 put("/api/expenses/" + id)
+                        .header(AUTHORIZATION, bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateRequest)
         )
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(id))
-                .andExpect(jsonPath("$.title").value("Groceries Updated"))
-                .andExpect(jsonPath("$.amount").value(250.00))
-                .andExpect(jsonPath("$.category").value("Groceries"))
-                .andExpect(jsonPath("$.date").value("2026-08-01"));
+        .andExpect(jsonPath("$.title").value("Groceries Updated"))
+        .andExpect(jsonPath("$.amount").value(250.00))
+        .andExpect(jsonPath("$.category").value("Groceries"))
+        .andExpect(jsonPath("$.date").value("2026-08-01"));
     }
 
     @Test
@@ -215,6 +277,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 put("/api/expenses/999")
+                        .header(AUTHORIZATION, bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateRequest)
         )
@@ -226,10 +289,10 @@ class ExpenseControllerTest {
 
         long id = createExpense("Grocery", "100.00", "Food", "2026-07-31");
 
-        mockMvc.perform(delete("/api/expenses/" + id))
+        mockMvc.perform(delete("/api/expenses/" + id).header(AUTHORIZATION, bearer()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/expenses"))
+        mockMvc.perform(get("/api/expenses").header(AUTHORIZATION, bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(0)));
     }
@@ -238,7 +301,7 @@ class ExpenseControllerTest {
     void shouldReturnNotFoundWhenDeletingNonExistingExpense()
             throws Exception {
 
-        mockMvc.perform(delete("/api/expenses/999"))
+        mockMvc.perform(delete("/api/expenses/999").header(AUTHORIZATION, bearer()))
                 .andExpect(status().isNotFound());
     }
 
@@ -256,6 +319,7 @@ class ExpenseControllerTest {
 
         mockMvc.perform(
                 post("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request)
         )
@@ -269,6 +333,94 @@ class ExpenseControllerTest {
                 .value("Category is required"))
         .andExpect(jsonPath("$.errors.date")
                 .value("Date is required"));
+    }
+
+    // ------------------------------------------------------------------
+    // Per-user data isolation
+    // ------------------------------------------------------------------
+
+    @Test
+    void shouldIsolateExpensesBetweenUsers() throws Exception {
+
+        createExpense("Mine", "100.00", "Food", "2026-07-31");
+
+        String otherToken = registerAndGetToken("other-user");
+
+        mockMvc.perform(get("/api/expenses").header(AUTHORIZATION, bearer(otherToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mockMvc.perform(get("/api/expenses/summary").header(AUTHORIZATION, bearer(otherToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalExpenses").value(0));
+
+        mockMvc.perform(get("/api/expenses").header(AUTHORIZATION, bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)));
+    }
+
+    @Test
+    void shouldNotLetUserModifyAnotherUsersExpense() throws Exception {
+
+        long id = createExpense("Mine", "100.00", "Food", "2026-07-31");
+
+        String otherToken = registerAndGetToken("other-user");
+
+        mockMvc.perform(delete("/api/expenses/" + id).header(AUTHORIZATION, bearer(otherToken)))
+                .andExpect(status().isNotFound());
+
+        String updateRequest = """
+                {
+                    "title": "Hacked",
+                    "amount": "1.00",
+                    "category": "Food",
+                    "date": "2026-07-31"
+                }
+                """;
+
+        mockMvc.perform(
+                put("/api/expenses/" + id)
+                        .header(AUTHORIZATION, bearer(otherToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequest)
+        )
+        .andExpect(status().isNotFound());
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    private String bearer() {
+        return "Bearer " + token;
+    }
+
+    private String bearer(String value) {
+        return "Bearer " + value;
+    }
+
+    private String authBody(String username, String password) {
+        return """
+                {
+                    "username": "%s",
+                    "password": "%s"
+                }
+                """.formatted(username, password);
+    }
+
+    private String registerAndGetToken(String username) throws Exception {
+        String response = mockMvc.perform(
+                post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(authBody(username, "password123"))
+        )
+        .andExpect(status().isCreated())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+
+        return JsonPath.read(response, "$.token");
     }
 
     private long createExpense(
@@ -293,6 +445,7 @@ class ExpenseControllerTest {
 
         String response = mockMvc.perform(
                 post("/api/expenses")
+                        .header(AUTHORIZATION, bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request)
         )

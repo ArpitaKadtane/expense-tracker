@@ -26,6 +26,8 @@ services:
       DB_USER: expense
       DB_PASSWORD: expense
       PORT: 8080
+      # Local development secret only — override with a strong value in production.
+      JWT_SECRET: ${JWT_SECRET:-local-development-only-secret-change-me-0123456789}
     depends_on:
       db:
         condition: service_healthy

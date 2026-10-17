@@ -1,11 +1,4 @@
-import axios from 'axios'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
-
-const http = axios.create({
-  baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' }
-})
+import http from './http'
 
 export async function getExpenses({ page = 0, size = 10, category } = {}) {
   const params = { page, size }
@@ -55,6 +48,10 @@ export function getFieldErrors(error) {
 export function getApiErrorMessage(error, fallback) {
   if (error?.response) {
     const { status, data } = error.response
+
+    if (status === 401) {
+      return 'Your session has expired. Please sign in again.'
+    }
 
     if (status === 404) {
       return 'The requested expense could not be found. It may have already been deleted.'

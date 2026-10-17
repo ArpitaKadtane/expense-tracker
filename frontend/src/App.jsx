@@ -7,6 +7,8 @@ import ExpenseForm from './components/ExpenseForm'
 import ExpenseList from './components/ExpenseList'
 import ConfirmDialog from './components/ConfirmDialog'
 import Banner from './components/Banner'
+import LoginForm from './components/LoginForm'
+import { AuthProvider, useAuth } from './context/AuthContext'
 
 import {
   deleteExpense,
@@ -20,6 +22,19 @@ import {
 const PAGE_SIZE = 10
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  )
+}
+
+function AppRoutes() {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? <Dashboard /> : <LoginForm />
+}
+
+function Dashboard() {
   const [expensePage, setExpensePage] = useState(null)
   const [categories, setCategories] = useState([])
   const [page, setPage] = useState(0)
