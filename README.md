@@ -162,6 +162,28 @@ backend and builds the frontend.
 
 ---
 
+## Deployment
+
+The application deploys to free tiers with no code changes:
+
+| Component | Platform | Notes |
+| --- | --- | --- |
+| Database | [Neon](https://neon.tech) | Free serverless PostgreSQL (never expires) |
+| Backend | [Render](https://render.com) | Docker web service via [`render.yaml`](render.yaml). Free tier sleeps after ~15 min of inactivity |
+| Frontend | [Vercel](https://vercel.com) | Static Vite build, served from a global CDN |
+
+Backend environment variables to configure on Render:
+
+- `DB_URL` — Neon JDBC URL, e.g. `jdbc:postgresql://<host>/<db>?sslmode=require`
+- `DB_USER`, `DB_PASSWORD` — Neon credentials
+- `CORS_ALLOWED_ORIGINS` — the deployed frontend URL, e.g. `https://your-app.vercel.app`
+
+Frontend environment variable to configure on Vercel (build-time):
+
+- `VITE_API_BASE_URL` — e.g. `https://your-api.onrender.com/api`
+
+---
+
 ## Configuration
 
 The backend reads configuration from environment variables (with sensible local defaults):
